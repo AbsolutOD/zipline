@@ -32,18 +32,18 @@ var listCmd = &cobra.Command{
 		out := cmd.OutOrStdout()
 		if listQuiet {
 			for _, a := range aliases {
-				fmt.Fprintln(out, a.Name)
+				_, _ = fmt.Fprintln(out, a.Name)
 			}
 			return nil
 		}
 		if len(aliases) == 0 {
-			fmt.Fprintln(out, `No aliases stored. Add one with: zipline add <alias> "<command>"`)
+			_, _ = fmt.Fprintln(out, `No aliases stored. Add one with: zipline add <alias> "<command>"`)
 			return nil
 		}
 		w := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
-		fmt.Fprintln(w, "ALIAS\tUSES\tLAST USED\tCOMMAND")
+		_, _ = fmt.Fprintln(w, "ALIAS\tUSES\tLAST USED\tCOMMAND")
 		for _, a := range aliases {
-			fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", a.Name, a.UseCount, humanTime(a.LastUsedAt), truncate(a.Command, 60))
+			_, _ = fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", a.Name, a.UseCount, humanTime(a.LastUsedAt), truncate(a.Command, 60))
 		}
 		return w.Flush()
 	},

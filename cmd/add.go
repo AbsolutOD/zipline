@@ -42,13 +42,13 @@ var addCmd = &cobra.Command{
 			if err := st.Update(existing); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Updated alias %q\n", aliasName)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated alias %q\n", aliasName)
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Added alias %q\n", aliasName)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added alias %q\n", aliasName)
 		return nil
 	},
 }

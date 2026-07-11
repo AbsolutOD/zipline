@@ -27,9 +27,9 @@ var editCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer os.Remove(tmp.Name())
+		defer func() { _ = os.Remove(tmp.Name()) }()
 		if _, err := tmp.WriteString(a.Command + "\n"); err != nil {
-			tmp.Close()
+			_ = tmp.Close()
 			return err
 		}
 		if err := tmp.Close(); err != nil {
@@ -58,7 +58,7 @@ var editCmd = &cobra.Command{
 		if err := st.Update(a); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Updated alias %q\n", a.Name)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated alias %q\n", a.Name)
 		return nil
 	},
 }

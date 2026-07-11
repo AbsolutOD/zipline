@@ -22,7 +22,7 @@ var removeCmd = &cobra.Command{
 		if err := st.Delete(args[0]); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Removed alias %q\n", args[0])
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removed alias %q\n", args[0])
 		return nil
 	},
 }

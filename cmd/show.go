@@ -21,14 +21,14 @@ var showCmd = &cobra.Command{
 			return err
 		}
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 8, 2, ' ', 0)
-		fmt.Fprintf(w, "Name:\t%s\n", a.Name)
-		fmt.Fprintf(w, "Command:\t%s\n", a.Command)
+		_, _ = fmt.Fprintf(w, "Name:\t%s\n", a.Name)
+		_, _ = fmt.Fprintf(w, "Command:\t%s\n", a.Command)
 		if a.Description != "" {
-			fmt.Fprintf(w, "Description:\t%s\n", a.Description)
+			_, _ = fmt.Fprintf(w, "Description:\t%s\n", a.Description)
 		}
-		fmt.Fprintf(w, "Uses:\t%d\n", a.UseCount)
-		fmt.Fprintf(w, "Last used:\t%s\n", humanTime(a.LastUsedAt))
-		fmt.Fprintf(w, "Created:\t%s\n", a.CreatedAt.Format("2006-01-02"))
+		_, _ = fmt.Fprintf(w, "Uses:\t%d\n", a.UseCount)
+		_, _ = fmt.Fprintf(w, "Last used:\t%s\n", humanTime(a.LastUsedAt))
+		_, _ = fmt.Fprintf(w, "Created:\t%s\n", a.CreatedAt.Format("2006-01-02"))
 		return w.Flush()
 	},
 }

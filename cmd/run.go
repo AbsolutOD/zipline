@@ -48,7 +48,7 @@ func runAlias(st *store.Store, ex execute.Execer, aliasName string, args []strin
 	}
 	// Tracking must never block execution.
 	if err := st.Touch(a.Name); err != nil {
-		fmt.Fprintf(errW, "zipline: warning: failed to record usage: %v\n", err)
+		_, _ = fmt.Fprintf(errW, "zipline: warning: failed to record usage: %v\n", err)
 	}
 	return execute.Run(ex, a.Command, a.Name, args)
 }
