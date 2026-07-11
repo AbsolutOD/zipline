@@ -11,11 +11,36 @@ import (
 // Alias names must be legal shell function names.
 var validRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
-// Validate returns an error if n is not a legal alias name or is in
-// the reserved list (zipline subcommand names, wrapper name, ...).
+// blocklist holds names that always break the generated hook, regardless
+// of the caller-supplied reserved list: bash/zsh reserved words (defining
+// a shell function named after one, e.g. `time() { ... }`, is a syntax
+// error that makes the whole `eval` fail atomically) plus builtins the
+// generated script itself relies on (`\command` only suppresses aliases,
+// not functions, so shadowing these causes infinite recursion).
+var blocklist = map[string]bool{
+	// bash/zsh reserved words
+	"if": true, "then": true, "else": true, "elif": true, "fi": true,
+	"case": true, "esac": true, "for": true, "while": true, "until": true,
+	"do": true, "done": true, "function": true, "select": true,
+	"time": true, "coproc": true, "repeat": true, "in": true,
+	// builtins the generated hook depends on; shadowing them with a
+	// function would break `\command` dispatch or the wrapper itself
+	"command": true, "eval": true, "unset": true, "local": true,
+	"return": true, "builtin": true, "exec": true, "exit": true,
+	"set": true, "declare": true, "typeset": true, "readonly": true,
+	"export": true, "trap": true, "source": true,
+}
+
+// Validate returns an error if n is not a legal alias name, is in the
+// caller-supplied reserved list (zipline subcommand names, wrapper name,
+// ...), or is a shell reserved word / critical builtin that would break
+// the generated hook script no matter what the caller allows.
 func Validate(n string, reserved []string) error {
 	if !validRE.MatchString(n) {
 		return fmt.Errorf("invalid alias name %q: must start with a letter or underscore and contain only letters, digits, underscores, and hyphens", n)
+	}
+	if blocklist[n] {
+		return fmt.Errorf("alias name %q is a shell reserved word or builtin that would break the generated hook", n)
 	}
 	for _, r := range reserved {
 		if n == r {

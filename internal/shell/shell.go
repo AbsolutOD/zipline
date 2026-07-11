@@ -50,7 +50,12 @@ const scriptTmpl = `# zipline shell integration ({{ .Shell }})
 var tmpl = template.Must(template.New("script").Parse(scriptTmpl))
 
 // Script renders the integration script, validating every name that
-// becomes a shell function so the output is always safe to eval.
+// becomes a shell function so the output is always safe to eval: each
+// name is run through name.Validate(x, nil), which — regardless of the
+// nil reserved list — always rejects shell reserved words and critical
+// builtins that would otherwise break the generated script (a reserved
+// word makes the whole eval fail atomically; a shadowed builtin like
+// `command` or `eval` causes infinite recursion).
 func Script(d Data) (string, error) {
 	if d.Shell != "bash" && d.Shell != "zsh" {
 		return "", fmt.Errorf("unsupported shell %q (supported: bash, zsh)", d.Shell)

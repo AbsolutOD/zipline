@@ -23,6 +23,21 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidateBlocksShellReservedWordsAndBuiltins(t *testing.T) {
+	// These must be rejected even with a nil/empty reserved list: shell
+	// reserved words break the generated hook's eval outright, and
+	// shadowing these builtins causes infinite recursion in the hook.
+	blocked := []string{"time", "if", "for", "while", "case", "select",
+		"function", "until", "do", "done", "then", "else", "elif", "fi",
+		"esac", "coproc", "repeat", "command", "eval", "unset", "local",
+		"return", "builtin"}
+	for _, n := range blocked {
+		if err := name.Validate(n, nil); err == nil {
+			t.Errorf("Validate(%q, nil) = nil, want error (shell reserved word/builtin)", n)
+		}
+	}
+}
+
 func TestSuggest(t *testing.T) {
 	candidates := []string{"runlike", "dive", "ctop", "runlike2"}
 	tests := []struct {
