@@ -40,8 +40,7 @@ func Load() (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(filepath.Join(Dir(), "config.toml"))
 	if err := v.ReadInConfig(); err != nil {
-		var pathErr *fs.PathError
-		if errors.As(err, &pathErr) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return cfg, nil
 		}
 		return nil, err
