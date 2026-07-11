@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra/doc"
-	"example.com/myapp/cmd" // update to your module path
+	"github.com/AbsolutOD/zipline/cmd"
 )
 
 func main() {
