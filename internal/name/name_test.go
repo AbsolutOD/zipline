@@ -29,8 +29,8 @@ func TestValidateBlocksShellReservedWordsAndBuiltins(t *testing.T) {
 	// shadowing these builtins causes infinite recursion in the hook.
 	blocked := []string{"time", "if", "for", "while", "case", "select",
 		"function", "until", "do", "done", "then", "else", "elif", "fi",
-		"esac", "coproc", "repeat", "command", "eval", "unset", "local",
-		"return", "builtin"}
+		"esac", "coproc", "repeat", "foreach", "end", "command", "eval",
+		"unset", "local", "return", "builtin"}
 	for _, n := range blocked {
 		if err := name.Validate(n, nil); err == nil {
 			t.Errorf("Validate(%q, nil) = nil, want error (shell reserved word/builtin)", n)

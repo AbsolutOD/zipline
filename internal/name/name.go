@@ -23,6 +23,7 @@ var blocklist = map[string]bool{
 	"case": true, "esac": true, "for": true, "while": true, "until": true,
 	"do": true, "done": true, "function": true, "select": true,
 	"time": true, "coproc": true, "repeat": true, "in": true,
+	"foreach": true, "end": true,
 	// builtins the generated hook depends on; shadowing them with a
 	// function would break `\command` dispatch or the wrapper itself
 	"command": true, "eval": true, "unset": true, "local": true,

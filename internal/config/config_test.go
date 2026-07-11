@@ -87,7 +87,7 @@ func TestLoadReturnsErrorOnMalformedConfig(t *testing.T) {
 
 // TestLoadReturnsErrorOnUnreadableConfig ensures a present-but-permission-
 // denied config.toml surfaces an error instead of silently falling back
-// to defaults. Skipped when running as a user that bypasses file
+// to defaults. Skipped only when running as a user that bypasses file
 // permissions (e.g. root), since chmod 000 wouldn't actually block reads.
 func TestLoadReturnsErrorOnUnreadableConfig(t *testing.T) {
 	if os.Geteuid() == 0 {
@@ -108,6 +108,6 @@ func TestLoadReturnsErrorOnUnreadableConfig(t *testing.T) {
 	}
 	defer os.Chmod(path, 0o600)
 	if _, err := config.Load(); err == nil {
-		t.Skip("Load() succeeded despite chmod 000; permission enforcement unavailable in this environment")
+		t.Error("Load() with unreadable config.toml = nil error, want error")
 	}
 }
