@@ -240,7 +240,16 @@ git commit -m "build: add GoReleaser config for multi-platform release builds"
 
 **Interfaces:**
 - Consumes: `.goreleaser.yaml` from Task 2 (build id `zipline`).
-- Produces: a `build` matrix job (4 legs) uploading artifacts named `dist-<goos>-<goarch>`, and a `release` job that downloads them and publishes the GitHub Release.
+- Produces: a `build` matrix job (4 legs) uploading artifacts named `release-<goos>-<goarch>` (a `.tar.gz` archive + `.sha256` file each), and a `publish` job that downloads them and publishes the GitHub Release via `gh release create`.
+
+**Correction:** the original design used `goreleaser release --clean --split`
+per leg plus `goreleaser continue --merge` in a final job. That is
+**GoReleaser Pro-only** (confirmed against goreleaser.com/customization/partial/:
+"This feature is exclusively available with GoReleaser Pro") — the free/OSS
+`goreleaser` binary these workflows install cannot run those commands. Use
+`goreleaser build --clean --single-target` (OSS) per leg instead, then
+package and publish the release with plain shell + the `gh` CLI (already
+present on GitHub-hosted runners).
 
 - [ ] **Step 1: Write the workflow file**
 
@@ -280,8 +289,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -289,51 +296,55 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run GoReleaser (split)
+      - name: Build binary
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean --split
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: build --clean --single-target
 
-      - name: Upload partial dist
+      - name: Package archive
+        run: |
+          set -euo pipefail
+          BINARY=$(find dist -type f -name zipline)
+          STAGE="zipline_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "$STAGE"
+          cp "$BINARY" LICENSE README.md "$STAGE/"
+          tar -czf "${STAGE}.tar.gz" "$STAGE"
+          sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+
+      - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            zipline_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            zipline_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
           retention-days: 1
 
-  release:
-    name: Merge and Release
+  publish:
+    name: Publish Release
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Download all partial dists
+      - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: dist-*
+          pattern: release-*
           path: dist
           merge-multiple: true
 
-      - name: Run GoReleaser (merge)
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: continue --merge
+      - name: Combine checksums
+        run: cat dist/*.sha256 > dist/checksums.txt
+
+      - name: Publish GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/*.tar.gz dist/checksums.txt
 ```
 
 - [ ] **Step 2: Validate YAML syntax**
@@ -395,7 +406,7 @@ git push origin v0.0.0-test1
 gh run watch
 ```
 
-Expected: all 4 `build` matrix legs succeed, then `release` succeeds, and `gh release view v0.0.0-test1` shows 4 platform archives plus `checksums.txt` attached.
+Expected: all 4 `build` matrix legs succeed, then `publish` succeeds, and `gh release view v0.0.0-test1` shows 4 platform archives plus `checksums.txt` attached.
 
 - [ ] **Step 5: Clean up the throwaway release and tag**
 

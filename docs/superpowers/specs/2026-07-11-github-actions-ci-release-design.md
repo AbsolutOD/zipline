@@ -51,30 +51,42 @@ actual target platform:
 | `ubuntu-latest` | linux/amd64 |
 | `ubuntu-24.04-arm` | linux/arm64 |
 
-Each leg: checkout (`fetch-depth: 0`, needed for GoReleaser's changelog) →
-`actions/setup-go` → `goreleaser/goreleaser-action` with
-`args: release --clean --split`, which builds and packages only that
-runner's platform into a partial `dist/`. Upload that partial `dist/` as a
-build artifact named by platform (e.g. `dist-darwin-amd64`).
+Each leg: checkout → `actions/setup-go` → `goreleaser/goreleaser-action` with
+`args: build --clean --single-target`, which builds only that runner's
+native `GOOS`/`GOARCH` (inferred from the host — no explicit env needed)
+into `dist/<id>_<goos>_<goarch>*/zipline`. The leg then packages that binary
+into a `.tar.gz` archive (with `LICENSE`/`README.md`) and a `.sha256`
+checksum file via plain shell (`find`/`tar`/`sha256sum`), and uploads both
+as a build artifact named `release-<goos>-<goarch>`.
 
-### Merge/release job
+**Correction (post-implementation):** the original design used
+`goreleaser release --clean --split` per leg plus `goreleaser continue
+--merge` in a final job. That is a **GoReleaser Pro-only** feature
+(confirmed against goreleaser.com/customization/partial/: "This feature is
+exclusively available with GoReleaser Pro") — the free/OSS `goreleaser`
+binary these workflows install cannot run those commands. The design below
+replaces that mechanism with a plain `goreleaser build --single-target`
+(OSS) per leg plus manual archiving/publishing, so the whole pipeline stays
+free/OSS while keeping the native-runner-per-platform cgo reliability.
+
+### Publish job
 
 Runs after all matrix legs complete, on `ubuntu-latest`:
-- Checkout, setup-go.
-- Download all `dist-*` artifacts back into a combined `dist/`.
-- `goreleaser/goreleaser-action` with `args: continue --merge`, which
-  stitches the partial dists together, produces the combined checksums
-  file, and publishes a single GitHub Release with all 4 binaries attached.
-- Requires `GITHUB_TOKEN` (from `secrets.GITHUB_TOKEN`, default permissions
-  are sufficient given `contents: write` above).
+- Download all `release-*` artifacts into a combined `dist/` (`merge-multiple: true`).
+- Concatenate the per-platform `.sha256` files into one `dist/checksums.txt`.
+- `gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}"
+  --title "${{ github.ref_name }}" --generate-notes dist/*.tar.gz
+  dist/checksums.txt`, publishing a single GitHub Release with all 4
+  archives plus the combined checksums file attached.
+- Requires `GH_TOKEN` (from `secrets.GITHUB_TOKEN`) for the `gh` CLI, and
+  `contents: write` (already set at the workflow level) for `gh release create`.
 
 ## Verification
 
-`--split` / `continue --merge` is GoReleaser's documented mechanism for
-splitting a cgo build across native runners, but it's a less common path
-than a single-runner release. After implementation, push a real or throwaway
-`vX.Y.Z-test` tag on a branch/fork to confirm the full matrix-build →
-merge → release flow works end-to-end before considering this done.
+After implementation, push a real or throwaway `vX.Y.Z-test` tag on a
+branch/fork to confirm the full matrix-build → publish flow works
+end-to-end (all 4 archives + checksums.txt attached to a real GitHub
+Release) before considering this done.
 
 ## Out of scope
 
