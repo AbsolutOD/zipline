@@ -1,0 +1,20 @@
+# zipline shell integration (zsh)
+dive() { \command zipline run dive -- "$@"; }
+runlike() { \command zipline run runlike -- "$@"; }
+
+zl() {
+  \command zipline "$@"
+  local __zipline_ret=$?
+  if [ $__zipline_ret -eq 0 ]; then
+    case "$1" in
+      add|edit)
+        eval "$(\command zipline init zsh --funcs-only)"
+        ;;
+      remove|rm)
+        eval "$(\command zipline init zsh --funcs-only)"
+        unset -f "$2" 2>/dev/null
+        ;;
+    esac
+  fi
+  return $__zipline_ret
+}

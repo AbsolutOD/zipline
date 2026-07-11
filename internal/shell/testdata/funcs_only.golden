@@ -1,0 +1,3 @@
+# zipline shell integration (bash)
+dive() { \command zipline run dive -- "$@"; }
+runlike() { \command zipline run runlike -- "$@"; }
