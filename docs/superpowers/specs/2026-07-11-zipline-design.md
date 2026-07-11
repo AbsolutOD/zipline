@@ -42,7 +42,7 @@ A single Go binary built on the existing Cobra scaffold, in three layers:
 
 ### Storage choice
 
-SQLite via GORM with `mattn/go-sqlite3`, as bootstrapped in `go.mod`. Known trade-off, accepted deliberately: this driver requires cgo, which complicates cross-compiled release binaries. If releases become painful, swap to a pure-Go driver (`github.com/glebarez/sqlite`) without touching the store interface.
+SQLite via GORM using the official `gorm.io/driver/sqlite` driver, as bootstrapped in `go.mod`. Known trade-off, accepted deliberately: this driver wraps `mattn/go-sqlite3` and therefore requires cgo, which complicates cross-compiled release binaries. If releases become painful, swap to a pure-Go driver (`github.com/glebarez/sqlite`) without touching the store interface.
 
 ## Data model
 
