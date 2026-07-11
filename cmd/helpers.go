@@ -25,7 +25,7 @@ func openStore() (*store.Store, error) {
 func reservedNames() []string {
 	rootCmd.InitDefaultHelpCmd()
 	rootCmd.InitDefaultCompletionCmd()
-	names := []string{"zipline", "help", "completion", "list"}
+	names := []string{"zipline", "help", "completion"}
 	if cfg, err := config.Load(); err == nil && cfg.Cmd != "" {
 		names = append(names, cfg.Cmd)
 	}
