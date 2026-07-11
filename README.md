@@ -61,3 +61,17 @@ Generated command docs live in [docs/cli](docs/cli/). Regenerate with:
 ```sh
 go run ./internal/tools/docgen --out ./docs/cli
 ```
+
+## Caveats
+
+- Stored commands are run as `sh -c '<command> "$@"'`, so a command
+  ending in a shell metacharacter like `#` or `;` will swallow or detach
+  any args you append when invoking the alias (`#` starts a comment,
+  `;` starts a new statement). Avoid trailing `#`/`;` in stored commands
+  if you plan to append arguments.
+- The wrapper name is only "known" to `zl add`'s reserved-name check when
+  it comes from `cmd` in `config.toml`. A wrapper name set solely via
+  `zipline init --cmd NAME` (without also setting `cmd` in
+  `config.toml`) isn't reserved, so an alias could collide with it. If
+  you use a custom wrapper name, set `cmd` in `config.toml` to reserve
+  it.
