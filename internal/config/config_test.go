@@ -17,7 +17,7 @@ func TestDirUsesXDGConfigHome(t *testing.T) {
 
 func TestDirDefaultsToHomeConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
-	os.Unsetenv("XDG_CONFIG_HOME")
+	_ = os.Unsetenv("XDG_CONFIG_HOME")
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Skipf("no home dir: %v", err)
@@ -106,7 +106,7 @@ func TestLoadReturnsErrorOnUnreadableConfig(t *testing.T) {
 	if err := os.Chmod(path, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chmod(path, 0o600)
+	defer func() { _ = os.Chmod(path, 0o600) }()
 	if _, err := config.Load(); err == nil {
 		t.Error("Load() with unreadable config.toml = nil error, want error")
 	}

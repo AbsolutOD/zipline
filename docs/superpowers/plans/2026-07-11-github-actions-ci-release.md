@@ -4,7 +4,7 @@
 
 **Goal:** Add `linting-testing.yml` (lint + test on push/PR to main) and `build.yaml` (GoReleaser multi-platform release build on version tags) to zipline.
 
-**Architecture:** Two independent GitHub Actions workflow files plus a new `.goreleaser.yaml` config. Because zipline's sqlite3 driver requires cgo, `build.yaml` uses a matrix of native runners (one per target OS/arch) each running `goreleaser release --clean --split`, followed by a merge job running `goreleaser continue --merge` to combine partial dists into one GitHub Release.
+**Architecture:** Two independent GitHub Actions workflow files plus a new `.goreleaser.yaml` config. Because zipline's sqlite3 driver requires cgo, `build.yaml` uses a matrix of native runners (one per target OS/arch) each running `goreleaser build --clean --single-target` (OSS-only — see Task 3's corrections for why `release --split`/`continue --merge` was abandoned), then packages the binary with plain shell and publishes a single GitHub Release via `gh release create`.
 
 **Tech Stack:** GitHub Actions, `actions/checkout@v4`, `actions/setup-go@v5`, `golangci/golangci-lint-action@v6`, `goreleaser/goreleaser-action@v6` (GoReleaser v2), `actions/upload-artifact@v4` / `actions/download-artifact@v4`.
 
@@ -15,7 +15,7 @@
 - cgo is required (`github.com/mattn/go-sqlite3`); every build/test/lint job must run with `CGO_ENABLED=1` (the default) on a runner with a C toolchain — never disable cgo to simplify cross-compilation.
 - `linting-testing.yml` triggers on `push` and `pull_request` targeting `main` only.
 - `build.yaml` triggers on tags matching `v*`, and publishes a GitHub Release (not build-only).
-- Targets: darwin/amd64 (macos-13), darwin/arm64 (macos-14), linux/amd64 (ubuntu-latest), linux/arm64 (ubuntu-24.04-arm). No Windows.
+- Targets: darwin/arm64 (macos-latest), linux/amd64 (ubuntu-latest), linux/arm64 (ubuntu-24.04-arm). No Windows, no Intel macOS (darwin/amd64 dropped — see Task 3's Correction #2: no free GitHub-hosted Intel-macOS runner exists anymore).
 - No `.golangci.yml` customization — use golangci-lint defaults; gofmt formatting is checked as a separate explicit step, not assumed to be covered by default linters.
 - Any step that pushes to the `origin` remote, creates a branch/PR, or pushes a tag requires explicit user confirmation before running — do not execute those steps unattended.
 
@@ -28,6 +28,17 @@
 
 **Interfaces:**
 - Produces: a `lint` job and a `test` job, both runnable independently, both gating on `main`.
+
+**Correction (found during Task 4 CI verification):** the prebuilt `latest`
+golangci-lint binary release available at the time (v1.64.8, built with
+Go 1.24) is older than this repo's `go.mod` (`go 1.26.5`) and refuses to
+run ("the Go language version used to build golangci-lint is lower than
+the targeted Go version"). Fixed by adding `install-mode: goinstall` to
+the `golangci-lint-action` step, which builds golangci-lint from source
+using the Go toolchain `actions/setup-go` already installed for this job
+(matching `go.mod`), instead of downloading a stale prebuilt binary. This
+did not reproduce locally because the implementer's local `brew install
+golangci-lint` pulled a different, newer build.
 
 - [ ] **Step 1: Write the workflow file**
 
@@ -72,6 +83,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install-mode: goinstall
 
   test:
     name: Test
@@ -142,7 +154,15 @@ git commit -m "ci: add lint and test workflow"
 - Create: `.goreleaser.yaml`
 
 **Interfaces:**
-- Produces: a GoReleaser config with build id `zipline`, producing `darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64` archives — consumed by `build.yaml` in Task 3.
+- Produces: a GoReleaser config with build id `zipline`, producing `darwin/arm64`, `linux/amd64`, `linux/arm64` archives (darwin/amd64 explicitly ignored) — consumed by `build.yaml` in Task 3.
+
+**Correction (found during Task 4 CI verification):** darwin/amd64 was
+originally a 4th target here. No free GitHub-hosted Intel-macOS runner
+exists anymore (`macos-13` fully retired Dec 2025; its replacement
+`macos-15-intel` requires a paid "larger runners" plan) — see Task 3's
+Correction #2 for the full story. `darwin/amd64` is excluded via `ignore:`
+below rather than removed from `goos`/`goarch`, so the config still
+documents that it was considered and explicitly why it's unsupported.
 
 - [ ] **Step 1: Write the config**
 
@@ -169,6 +189,12 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      # No free GitHub-hosted Intel macOS runner exists anymore (macos-13
+      # retired Dec 2025; the replacement macos-15-intel requires a paid
+      # "larger runners" plan) — darwin/amd64 is not built.
+      - goos: darwin
+        goarch: amd64
 
 archives:
   - id: zipline
@@ -240,7 +266,36 @@ git commit -m "build: add GoReleaser config for multi-platform release builds"
 
 **Interfaces:**
 - Consumes: `.goreleaser.yaml` from Task 2 (build id `zipline`).
-- Produces: a `build` matrix job (4 legs) uploading artifacts named `dist-<goos>-<goarch>`, and a `release` job that downloads them and publishes the GitHub Release.
+- Produces: a `build` matrix job (3 legs) uploading artifacts named `release-<goos>-<goarch>` (a `.tar.gz` archive + `.sha256` file each), and a `publish` job that downloads them and publishes the GitHub Release via `gh release create`.
+
+**Correction:** the original design used `goreleaser release --clean --split`
+per leg plus `goreleaser continue --merge` in a final job. That is
+**GoReleaser Pro-only** (confirmed against goreleaser.com/customization/partial/:
+"This feature is exclusively available with GoReleaser Pro") — the free/OSS
+`goreleaser` binary these workflows install cannot run those commands. Use
+`goreleaser build --clean --single-target` (OSS) per leg instead, then
+package and publish the release with plain shell + the `gh` CLI (already
+present on GitHub-hosted runners).
+
+**Correction #2 (found during Task 4 CI verification):** the packaging
+step's `sha256sum` command doesn't exist on the macOS runners (`macos-13`,
+`macos-14`) — only Linux ships GNU coreutils' `sha256sum`; macOS has
+`shasum -a 256` instead. Both `darwin/amd64` and `darwin/arm64` matrix legs
+failed with "sha256sum: command not found" (exit 127) on a real tag push.
+Fixed by falling back to `shasum -a 256` when `sha256sum` isn't on `PATH`.
+
+**Correction #3 (found during Task 4 CI verification): no free Intel-macOS
+runner exists.** `macos-13` (used for the darwin/amd64 leg) was fully
+retired by GitHub in December 2025 — the job queued indefinitely rather
+than failing, which is why this wasn't caught until a real tag push hung
+for 20+ minutes. Its replacement, `macos-15-intel`, requires a paid "larger
+runners" plan, not the standard free GitHub-hosted pool. Decision: drop
+Intel macOS support entirely (an arm64-runner cross-compile via `GOARCH=amd64
+CC="clang -arch x86_64"` was considered and rejected as added complexity for
+a shrinking platform). The darwin/amd64 matrix entry is removed. Separately,
+`macos-14` (the darwin/arm64 leg) began its own deprecation on 2026-07-06
+(full retirement 2026-11-02) — moved to `macos-latest` to avoid repeating
+this. The matrix is now 3 legs, not 4.
 
 - [ ] **Step 1: Write the workflow file**
 
@@ -264,10 +319,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-13
-            goos: darwin
-            goarch: amd64
-          - os: macos-14
+          - os: macos-latest
             goos: darwin
             goarch: arm64
           - os: ubuntu-latest
@@ -280,8 +332,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -289,51 +339,59 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run GoReleaser (split)
+      - name: Build binary
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
-          args: release --clean --split
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: build --clean --single-target
 
-      - name: Upload partial dist
+      - name: Package archive
+        run: |
+          set -euo pipefail
+          BINARY=$(find dist -type f -name zipline)
+          STAGE="zipline_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "$STAGE"
+          cp "$BINARY" LICENSE README.md "$STAGE/"
+          tar -czf "${STAGE}.tar.gz" "$STAGE"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+          else
+            shasum -a 256 "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+          fi
+
+      - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            zipline_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            zipline_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
           retention-days: 1
 
-  release:
-    name: Merge and Release
+  publish:
+    name: Publish Release
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Download all partial dists
+      - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: dist-*
+          pattern: release-*
           path: dist
           merge-multiple: true
 
-      - name: Run GoReleaser (merge)
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: continue --merge
+      - name: Combine checksums
+        run: cat dist/*.sha256 > dist/checksums.txt
+
+      - name: Publish GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/*.tar.gz dist/checksums.txt
 ```
 
 - [ ] **Step 2: Validate YAML syntax**
@@ -395,7 +453,7 @@ git push origin v0.0.0-test1
 gh run watch
 ```
 
-Expected: all 4 `build` matrix legs succeed, then `release` succeeds, and `gh release view v0.0.0-test1` shows 4 platform archives plus `checksums.txt` attached.
+Expected: all 3 `build` matrix legs succeed, then `publish` succeeds, and `gh release view v0.0.0-test1` shows 3 platform archives plus `checksums.txt` attached.
 
 - [ ] **Step 5: Clean up the throwaway release and tag**
 

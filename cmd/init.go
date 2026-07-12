@@ -47,7 +47,7 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Fprint(cmd.OutOrStdout(), script)
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), script)
 		return nil
 	},
 }

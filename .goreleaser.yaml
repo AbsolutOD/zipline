@@ -1,0 +1,55 @@
+version: 2
+
+project_name: zipline
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: zipline
+    binary: zipline
+    main: .
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # No free GitHub-hosted Intel macOS runner exists anymore (macos-13
+      # retired Dec 2025; the replacement macos-15-intel requires a paid
+      # "larger runners" plan) — darwin/amd64 is not built.
+      - goos: darwin
+        goarch: amd64
+
+# build.yaml runs `goreleaser build` (not `goreleaser release`), so the
+# archives/checksum/changelog/release sections below are never executed —
+# build.yaml packages the archive, checksum, and GitHub Release itself via
+# plain shell + `gh release create`. Kept here to document intent for
+# anyone who later switches back to `goreleaser release`.
+archives:
+  - id: zipline
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: AbsolutOD
+    name: zipline
