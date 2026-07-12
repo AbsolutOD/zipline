@@ -29,6 +29,17 @@
 **Interfaces:**
 - Produces: a `lint` job and a `test` job, both runnable independently, both gating on `main`.
 
+**Correction (found during Task 4 CI verification):** the prebuilt `latest`
+golangci-lint binary release available at the time (v1.64.8, built with
+Go 1.24) is older than this repo's `go.mod` (`go 1.26.5`) and refuses to
+run ("the Go language version used to build golangci-lint is lower than
+the targeted Go version"). Fixed by adding `install-mode: goinstall` to
+the `golangci-lint-action` step, which builds golangci-lint from source
+using the Go toolchain `actions/setup-go` already installed for this job
+(matching `go.mod`), instead of downloading a stale prebuilt binary. This
+did not reproduce locally because the implementer's local `brew install
+golangci-lint` pulled a different, newer build.
+
 - [ ] **Step 1: Write the workflow file**
 
 Create `.github/workflows/linting-testing.yml`:
@@ -72,6 +83,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          install-mode: goinstall
 
   test:
     name: Test
