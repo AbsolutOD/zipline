@@ -25,6 +25,11 @@ builds:
       - goos: darwin
         goarch: amd64
 
+# build.yaml runs `goreleaser build` (not `goreleaser release`), so the
+# archives/checksum/changelog/release sections below are never executed —
+# build.yaml packages the archive, checksum, and GitHub Release itself via
+# plain shell + `gh release create`. Kept here to document intent for
+# anyone who later switches back to `goreleaser release`.
 archives:
   - id: zipline
     formats: [tar.gz]
