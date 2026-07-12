@@ -263,6 +263,13 @@ per leg plus `goreleaser continue --merge` in a final job. That is
 package and publish the release with plain shell + the `gh` CLI (already
 present on GitHub-hosted runners).
 
+**Correction #2 (found during Task 4 CI verification):** the packaging
+step's `sha256sum` command doesn't exist on the macOS runners (`macos-13`,
+`macos-14`) — only Linux ships GNU coreutils' `sha256sum`; macOS has
+`shasum -a 256` instead. Both `darwin/amd64` and `darwin/arm64` matrix legs
+failed with "sha256sum: command not found" (exit 127) on a real tag push.
+Fixed by falling back to `shasum -a 256` when `sha256sum` isn't on `PATH`.
+
 - [ ] **Step 1: Write the workflow file**
 
 Create `.github/workflows/build.yaml`:
@@ -322,7 +329,11 @@ jobs:
           mkdir -p "$STAGE"
           cp "$BINARY" LICENSE README.md "$STAGE/"
           tar -czf "${STAGE}.tar.gz" "$STAGE"
-          sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+          else
+            shasum -a 256 "${STAGE}.tar.gz" > "${STAGE}.tar.gz.sha256"
+          fi
 
       - name: Upload archive
         uses: actions/upload-artifact@v4
